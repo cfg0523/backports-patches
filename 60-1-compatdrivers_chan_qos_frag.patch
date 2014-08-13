@@ -4,30 +4,27 @@
 diff -r 6b71629b673d drivers/net/wireless/rtl818x/rtl8187/dev.c
 --- a/drivers/net/wireless/rtl818x/rtl8187/dev.c	Tue May 28 16:57:23 2013 -0400
 +++ b/drivers/net/wireless/rtl818x/rtl8187/dev.c	Tue May 28 17:16:15 2013 -0400
-@@ -252,8 +252,18 @@ static void rtl8187_tx(struct ieee80211_
- 	flags |= RTL818X_TX_DESC_FLAG_NO_ENC;
+@@ -252,8 +252,13 @@
  
  	flags |= ieee80211_get_tx_rate(dev, info)->hw_value << 24;
-+	
-+	// When this flag is set the firmware waits untill ALL fragments have
-+	// reached the USB device. Then it sends the first fragment and waits
-+	// for ACKS's. Of course in monitor mode it won't detect these ACK's.
  	if (ieee80211_has_morefrags(tx_hdr->frame_control))
 -		flags |= RTL818X_TX_DESC_FLAG_MOREFRAG;
+-
 +	{
 +		// If info->control.vif is NULL it's most likely in monitor mode
 +		if (likely(info->control.vif != NULL && info->control.vif->type != NL80211_IFTYPE_MONITOR)) {
 +			flags |= RTL818X_TX_DESC_FLAG_MOREFRAG;
 +		}
 +	}
-+
- 	if (info->control.rates[0].flags & IEEE80211_TX_RC_USE_RTS_CTS) {
- 		flags |= RTL818X_TX_DESC_FLAG_RTS;
- 		flags |= ieee80211_get_rts_cts_rate(dev, info)->hw_value << 19;
++					
+ 	/* HW will perform RTS-CTS when only RTS flags is set.
+ 	 * HW will perform CTS-to-self when both RTS and CTS flags are set.
+ 	 * RTS rate and RTS duration will be used also for CTS-to-self.
+
 diff -r 6b71629b673d net/mac80211/cfg.c
 --- a/net/mac80211/cfg.c	Tue May 28 16:57:23 2013 -0400
 +++ b/net/mac80211/cfg.c	Tue May 28 17:16:15 2013 -0400
-@@ -826,7 +826,8 @@ static int ieee80211_set_monitor_channel
+@@ -839,7 +839,8 @@ ieee80211_vif_release_channel(sdata);
  			ret = ieee80211_vif_use_channel(sdata, chandef,
  					IEEE80211_CHANCTX_EXCLUSIVE);
  		}
@@ -37,25 +34,26 @@ diff -r 6b71629b673d net/mac80211/cfg.c
 		local->_oper_chandef = *chandef;
  		ieee80211_hw_config(local, 0);
  }
+
 diff -r 6b71629b673d net/mac80211/tx.c
 --- a/net/mac80211/tx.c	Tue May 28 16:57:23 2013 -0400
 +++ b/net/mac80211/tx.c	Tue May 28 17:16:15 2013 -0400
-@@ -1482,7 +1582,10 @@ void ieee80211_xmit(struct ieee80211_sub
- 	/* Older kernels do not have the select_queue callback */
- 	skb_set_queue_mapping(skb, ieee80211_select_queue(sdata, skb));
- #endif
+@@ -1534,7 +1534,10 @@
+		}
+	}
+
 -	ieee80211_set_qos_hdr(sdata, skb);
 +	// Don't overwrite QoS header in monitor mode
 +	if (likely(info->control.vif->type != NL80211_IFTYPE_MONITOR)) {
 +		ieee80211_set_qos_hdr(sdata, skb);
 +	}
- 	ieee80211_tx(sdata, skb, false, band);
+	ieee80211_tx(sdata, skb, false, band);
  }
- 
+
 diff -r 6b71629b673d net/wireless/chan.c
 --- a/net/wireless/chan.c	Tue May 28 16:57:23 2013 -0400
 +++ b/net/wireless/chan.c	Tue May 28 17:16:15 2013 -0400
-@@ -480,8 +480,10 @@ int cfg80211_set_monitor_channel(struct 
+@@ -689,8 +689,10 @@ int cfg80211_set_monitor_channel(struct 
  {
  	if (!rdev->ops->set_monitor_channel)
  		return -EOPNOTSUPP;
