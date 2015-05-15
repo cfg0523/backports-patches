@@ -1,6 +1,6 @@
  *original patch by Mathy Vanhoef
  *http://www.mathyvanhoef.com/2012/09/compat-wireless-injection-patch-for.html
- *fixed in offset by Devil_D
+ *fixed in offset by Devil_D, t3kk3n
 diff -r 6b71629b673d drivers/net/wireless/rtl818x/rtl8187/dev.c
 --- a/drivers/net/wireless/rtl818x/rtl8187/dev.c	Tue May 28 16:57:23 2013 -0400
 +++ b/drivers/net/wireless/rtl818x/rtl8187/dev.c	Tue May 28 17:16:15 2013 -0400
@@ -47,7 +47,7 @@ diff -r 6b71629b673d net/mac80211/tx.c
 +	if (likely(info->control.vif->type != NL80211_IFTYPE_MONITOR)) {
 +		ieee80211_set_qos_hdr(sdata, skb);
 +	}
-	ieee80211_tx(sdata, skb, false, band);
+	ieee80211_tx(sdata, sta, skb, false);
  }
 
 diff -r 6b71629b673d net/wireless/chan.c
